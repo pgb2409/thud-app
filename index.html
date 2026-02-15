@@ -1,62 +1,18 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Thud App - Generador de Partituras</title>
-    <script type="module">
-        import { Client } from "https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js";
+// ... dentro de tu script anterior ...
+const result = await client.predict("/procesar_audio", { 
+    audio_path: fileInput.files[0], 
+});
 
-        async function procesar() {
-            const fileInput = document.getElementById('audioInput');
-            const btn = document.getElementById('btn');
-            const placeholder = document.getElementById('placeholderText');
-            
-            if (fileInput.files.length === 0) {
-                alert("Por favor, selecciona un archivo primero.");
-                return;
-            }
-
-            btn.innerText = "🚀 PROCESANDO...";
-            btn.disabled = true;
-            placeholder.innerText = "Enviando audio al motor...";
-
-            try {
-                // Conectamos directamente con tu espacio usando su nombre
-                const client = await Client.connect("pgb2409/thud-backend");
-                
-                // Enviamos el audio a la función /procesar_audio que sale en tu captura
-                const result = await client.predict("/procesar_audio", { 
-                    audio_path: fileInput.files[0], 
-                });
-
-                if (result.data) {
-                    btn.innerText = "✅ ÉXITO";
-                    placeholder.innerHTML = `<div class='p-4 bg-green-100 text-green-800 rounded'><strong>Análisis:</strong> ${result.data[0]}</div>`;
-                }
-            } catch (error) {
-                console.error(error);
-                alert("Error: " + error.message);
-                btn.innerText = "⚠️ REINTENTAR";
-            } finally {
-                btn.disabled = false;
-            }
-        }
-        // Hacemos la función accesible globalmente
-        window.procesar = procesar;
-    </script>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-900 text-white min-h-screen p-4 md:p-10">
-    <div class="max-w-4xl mx-auto">
-        <h1 class="text-4xl font-bold mb-5 text-cyan-400 font-mono italic">THUD</h1>
-        <div class="bg-slate-800 p-6 rounded-2xl mb-10 border border-slate-700 shadow-2xl">
-            <input type="file" id="audioInput" accept="audio/*" class="mb-4 block w-full text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:bg-cyan-900 file:text-cyan-300">
-            <button onclick="procesar()" id="btn" class="w-full bg-white text-slate-900 hover:bg-cyan-400 px-6 py-3 rounded-xl font-bold">GENERAR PARTITURA</button>
-        </div>
-        <div id="osmdCanvas" class="bg-white rounded-2xl p-6 min-h-[400px] text-slate-900">
-            <p id="placeholderText" class="text-center text-slate-400 mt-20">La partitura aparecerá aquí...</p>
-        </div>
-    </div>
-</body>
-</html>
+if (result.data) {
+    btn.innerText = "✅ PARTITURA LISTA";
+    placeholder.innerText = "Dibujando música...";
+    
+    // El archivo viene en result.data[1].url
+    const musicUrl = result.data[1].url;
+    
+    // Usamos OSMD para dibujar la partitura
+    const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmdCanvas");
+    await osmd.load(musicUrl);
+    osmd.render();
+}
+// ...
