@@ -2,55 +2,92 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Thud App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thud App - Generador de Partituras</title>
     <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.8.8/build/opensheetmusicdisplay.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-900 text-white p-10">
+<body class="bg-slate-900 text-white min-h-screen p-4 md:p-10">
     <div class="max-w-4xl mx-auto">
         <h1 class="text-4xl font-bold mb-5 text-cyan-400 font-mono italic">THUD</h1>
+        
         <div class="bg-slate-800 p-6 rounded-2xl mb-10 border border-slate-700 shadow-2xl">
-            <input type="file" id="audioInput" accept="audio/*" class="mb-4 block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-cyan-600 file:text-white hover:file:bg-cyan-500 cursor-pointer">
-            <button onclick="procesar()" id="btn" class="bg-white text-slate-900 hover:bg-cyan-400 px-6 py-3 rounded-xl font-black transition w-full shadow-lg">GENERAR PARTITURA</button>
+            <p class="mb-4 text-slate-300">Sube tu audio de batería (.mp3 o .wav) para generar la partitura.</p>
+            
+            <input type="file" id="audioInput" accept="audio/*" 
+                class="mb-4 block w-full text-sm text-slate-400
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-full file:border-0
+                file:text-sm file:font-semibold
+                file:bg-cyan-900 file:text-cyan-300
+                hover:file:bg-cyan-800">
+            
+            <button onclick="procesar()" id="btn" 
+                class="w-full bg-white text-slate-900 hover:bg-cyan-400 px-6 py-3 rounded-xl font-bold transition-all duration-300">
+                GENERAR PARTITURA
+            </button>
+
             <audio id="player" controls class="w-full mt-6 hidden"></audio>
         </div>
-        <div id="osmdCanvas" class="bg-white rounded-2xl p-6 min-h-[500px] shadow-inner"></div>
+
+        <div id="osmdCanvas" class="bg-white rounded-2xl p-6 min-h-[400px] shadow-inner text-slate-900">
+            <p id="placeholderText" class="text-center text-slate-400 mt-20">La partitura aparecerá aquí después de procesar el audio...</p>
+        </div>
     </div>
+
     <script>
-        const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmdCanvas", { autoResize: true, drawTitle: false });
+        // Función para convertir el archivo a Base64 (necesario para Hugging Face)
+        const toBase64 = file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+
         async function procesar() {
             const fileInput = document.getElementById('audioInput');
             const btn = document.getElementById('btn');
-            if (!fileInput.files[0]) return alert("Selecciona un audio primero");
+            const placeholder = document.getElementById('placeholderText');
+            
+            if (fileInput.files.length === 0) {
+                alert("Por favor, selecciona un archivo primero.");
+                return;
+            }
 
-            btn.innerText = "⏳ PROCESANDO EN HUGGING FACE...";
+            // Cambiar estado del botón
+            btn.innerText = "🚀 PROCESANDO EN EL MOTOR...";
             btn.disabled = true;
-
-            const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
+            placeholder.innerText = "Analizando ritmo de batería... por favor espera.";
 
             try {
-                const response = await fetch('https://pgb2409-thud-backend.hf.space/process', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (!response.ok) throw new Error("El motor está arrancando, espera un momento.");
+                const file = fileInput.files[0];
+                const base64Audio = await toBase64(file);
 
-                const blob = await response.blob();
-                const xmlText = await blob.text();
-                
-                await osmd.load(xmlText);
-                osmd.render();
-                
-                const player = document.getElementById('player');
-                player.src = URL.createObjectURL(fileInput.files[0]);
-                player.classList.remove('hidden');
-                btn.innerText = "✅ PARTITURA LISTA";
-            } catch (e) {
-                alert(e.message);
-                btn.innerText = "❌ REINTENTAR";
-            } finally {
+                // Llamada a la API de tu motor en Hugging Face
+                const response = await fetch("https://pgb2409-thud-backend.hf.space/run/predict", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        data: [base64Audio]
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.data) {
+                    // Si el motor responde con éxito
+                    alert("Resultado del motor: " + result.data[0]);
+                    btn.innerText = "✅ PARTITURA GENERADA";
+                    placeholder.innerText = "Análisis completado: " + result.data[0];
+                    btn.disabled = false;
+                } else {
+                    throw new Error("El motor no devolvió datos válidos.");
+                }
+
+            } catch (error) {
+                console.error("Error detallado:", error);
+                alert("El motor está arrancando o hay un error de conexión. Espera 60 segundos y vuelve a intentarlo.");
+                btn.innerText = "⚠️ REINTENTAR GENERAR";
                 btn.disabled = false;
             }
         }
