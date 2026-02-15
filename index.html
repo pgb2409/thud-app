@@ -1,18 +1,96 @@
-// ... dentro de tu script anterior ...
-const result = await client.predict("/procesar_audio", { 
-    audio_path: fileInput.files[0], 
-});
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thud App - Generador de Partituras</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.8.8/build/opensheetmusicdisplay.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script type="module">
+        import { Client } from "https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js";
 
-if (result.data) {
-    btn.innerText = "✅ PARTITURA LISTA";
-    placeholder.innerText = "Dibujando música...";
-    
-    // El archivo viene en result.data[1].url
-    const musicUrl = result.data[1].url;
-    
-    // Usamos OSMD para dibujar la partitura
-    const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmdCanvas");
-    await osmd.load(musicUrl);
-    osmd.render();
-}
-// ...
+        async function procesar() {
+            const fileInput = document.getElementById('audioInput');
+            const btn = document.getElementById('btn');
+            const placeholder = document.getElementById('placeholderText');
+            const canvas = document.getElementById('osmdCanvas');
+            
+            if (fileInput.files.length === 0) {
+                alert("Por favor, selecciona un archivo primero.");
+                return;
+            }
+
+            // Resetear interfaz
+            btn.innerText = "🚀 PROCESANDO...";
+            btn.disabled = true;
+            placeholder.innerText = "El motor está analizando tu ritmo...";
+            canvas.innerHTML = ""; // Limpiar partitura anterior
+
+            try {
+                // 1. Conexión al motor de Hugging Face
+                const client = await Client.connect("pgb2409/thud-backend");
+                
+                // 2. Enviar audio y recibir respuesta
+                const result = await client.predict("/procesar_audio", { 
+                    audio_path: fileInput.files[0], 
+                });
+
+                if (result.data) {
+                    const textoAnalisis = result.data[0];
+                    const archivoMusicaUrl = result.data[1].url;
+
+                    btn.innerText = "✅ PARTITURA LISTA";
+                    placeholder.innerHTML = `<div class='p-3 bg-green-100 text-green-800 rounded mb-4'>${textoAnalisis}</div>`;
+
+                    // 3. Dibujar la partitura usando OSMD
+                    const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmdCanvas");
+                    await osmd.load(archivoMusicaUrl);
+                    osmd.render();
+                    
+                } else {
+                    throw new Error("El motor no devolvió una partitura válida.");
+                }
+
+            } catch (error) {
+                console.error(error);
+                alert("Error: " + error.message);
+                btn.innerText = "⚠️ REINTENTAR";
+                placeholder.innerText = "Hubo un problema al generar la música.";
+            } finally {
+                btn.disabled = false;
+            }
+        }
+        // Exponer la función al botón
+        window.procesar = procesar;
+    </script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen p-4 md:p-10 font-sans">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-4xl font-bold mb-5 text-cyan-400 font-mono italic">THUD</h1>
+        
+        <div class="bg-slate-800 p-6 rounded-2xl mb-10 border border-slate-700 shadow-2xl">
+            <p class="mb-4 text-slate-300">Sube tu audio de batería para ver la partitura:</p>
+            
+            <input type="file" id="audioInput" accept="audio/*" 
+                class="mb-4 block w-full text-sm text-slate-400
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-full file:border-0
+                file:text-sm file:font-semibold
+                file:bg-cyan-900 file:text-cyan-300
+                hover:file:bg-cyan-800 cursor-pointer">
+            
+            <button onclick="procesar()" id="btn" 
+                class="w-full bg-white text-slate-900 hover:bg-cyan-400 px-6 py-3 rounded-xl font-bold transition-all duration-300 shadow-lg">
+                GENERAR PARTITURA
+            </button>
+        </div>
+
+        <div class="bg-white rounded-2xl p-6 min-h-[500px] shadow-inner text-slate-900">
+            <div id="placeholderText" class="text-center text-slate-400 mt-10 mb-4">La música aparecerá aquí abajo...</div>
+            <div id="osmdCanvas"></div>
+        </div>
+    </div>
+</body>
+</html>
